@@ -70,6 +70,38 @@ HIDDEN int open_file(char* file_name, int flags) {
 			  flags);
 
 	if (fd < 0) {
+        fprintf(stderr, "Inside open_file\n");
+        // Print file name
+        fprintf(stderr, " Failed to open file: %s\n",
+                file_name);
+        // Print open flags
+        if(flags & O_RDONLY)
+            fprintf(stderr, "O_RDONLY\n");
+        if(flags & O_WRONLY)
+            fprintf(stderr, "O_WRONLY\n");
+        if(flags & O_RDWR)
+            fprintf(stderr, "O_RDWR\n");
+        if(flags & O_CREAT)
+            fprintf(stderr, "O_CREAT\n");
+        if(flags & O_EXCL)
+            fprintf(stderr, "O_EXCL\n");
+        if(flags & O_NOCTTY)
+            fprintf(stderr, "O_NOCTTY\n");
+        if(flags & O_TRUNC)
+            fprintf(stderr, "O_TRUNC\n");
+        if(flags & O_APPEND)
+            fprintf(stderr, "O_APPEND\n");
+        if(flags & O_NONBLOCK)
+            fprintf(stderr, "O_NONBLOCK\n");
+        if(flags & O_SYNC)
+            fprintf(stderr, "O_SYNC\n");
+        if(flags & O_ASYNC)
+            fprintf(stderr, "O_ASYNC\n");
+        if(flags & O_DIRECT)
+            fprintf(stderr, "O_DIRECT\n");
+        if(flags & O_DIRECTORY)
+            fprintf(stderr, "O_DIRECTORY\n");
+
 		fprintf(stderr, "Error: <COUNTDOWN-node:%s-rank:%d> Failed to open file: %s\n",
 				hostname															  ,
 				world_rank															  ,
