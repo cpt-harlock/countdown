@@ -41,12 +41,14 @@ HIDDEN void init_cpufreq() {
              STRING_SIZE     ,
              SCALING_MAX_FREQ,
              cntd->rank->cpu_id);
-	cntd->policy_limits_freq_fd[2] = open_file(filename, O_RDWR);
+	//cntd->policy_limits_freq_fd[2] = open_file(filename, O_RDWR);
+	cntd->policy_limits_freq_fd[2] = open_file(filename, O_RDONLY);
 	snprintf(filename        ,
              STRING_SIZE     ,
              SCALING_MIN_FREQ,
              cntd->rank->cpu_id);
-	cntd->policy_limits_freq_fd[3] = open_file(filename, O_RDWR);
+	//cntd->policy_limits_freq_fd[3] = open_file(filename, O_RDWR);
+	cntd->policy_limits_freq_fd[3] = open_file(filename, O_RDONLY);
 
 	int scaling_setspeed_flags = O_RDONLY;
 	if (cntd->userspace_governor)
