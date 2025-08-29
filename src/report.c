@@ -29,6 +29,8 @@
 */
 
 #include "cntd.h"
+//#include "${CNTD_MERIC_DIR}/cntd_meric.h"
+#include "/home/it4i-kaddooja/test3/meric/cntd_meric.h"
 
 static FILE *timeseries_fd;
 
@@ -362,15 +364,23 @@ HIDDEN void print_final_report()
 #ifdef POWER9
 		double global_energy_sys = 0;
 #endif
-#if defined(INTEL) || defined(POWER9) || defined(THUNDERX2)
+#if defined(INTEL) || defined(POWER9) || defined(THUNDERX2) 
 		double global_energy_pkg = 0;
+		
 #endif
-#if defined(INTEL) || defined(POWER9)
+#if defined(INTEL) || defined(POWER9) 
 		double global_energy_dram = 0;
 #endif
+		
 #ifdef POWER9
 		double global_energy_gpu_sys = 0;
 #endif
+
+#ifdef CNTD_MERIC
+                double global_energy_sys = 0 ;
+
+#endif
+
 #ifdef NVIDIA_GPU
 		double global_energy_gpu = 0;
 #endif
@@ -387,16 +397,28 @@ HIDDEN void print_final_report()
 #endif
             	for(j = 0; j < nodeinfo[i].num_sockets; j++)
 				{
-#if defined(INTEL) || defined(POWER9) || defined(THUNDERX2)
+#if defined(INTEL) || defined(POWER9) || defined(THUNDERX2) 
 					global_energy_pkg += nodeinfo[i].energy_pkg[j];
+printf("DEBUG: pkg Energy: %f\n", global_energy_pkg);
+
 #endif
 #if defined(INTEL) || defined(POWER9)
 					global_energy_dram += nodeinfo[i].energy_dram[j];
+printf("DEBUG: dram Energy: %f\n", global_energy_dram);
+
 #endif
 #ifdef POWER9
 					global_energy_gpu_sys += nodeinfo[i].energy_gpu[j];
 #endif
 				}
+#ifdef CNTD_MERIC
+        
+       global_energy_sys += nodeinfo[i].energy_sys;
+
+
+
+//              printf("DEBUG: global_energy_sys = %.0f J\n", global_energy_sys);
+#endif
 #ifdef NVIDIA_GPU
 				for(j = 0; j < nodeinfo[i].num_gpus; j++)
 					global_energy_gpu += gpuinfo[i].energy[j];
@@ -656,10 +678,10 @@ HIDDEN void print_final_report()
 #endif
 			if(cntd->enable_power_monitor)
 			{
-#if defined(INTEL) || defined(POWER9) || defined(THUNDERX2)
+#if defined(INTEL) || defined(POWER9) || defined(THUNDERX2) 
 				fprintf(summary_report_fd, ";energy_pkg");
 #endif
-#if defined(INTEL) || defined(POWER9)
+#if defined(INTEL) || defined(POWER9) 
 				fprintf(summary_report_fd, ";energy_dram");
 #endif
 #if defined(NVIDIA_GPU) || defined(POWER9)
@@ -667,6 +689,9 @@ HIDDEN void print_final_report()
 #endif
 #ifdef POWER9
 				fprintf(summary_report_fd, ";energy_sys");
+#endif
+#ifdef CNTD_MERIC
+                             	fprintf(summary_report_fd, ";energy_sys");
 #endif
 #if defined(INTEL) || defined(POWER9) || defined(THUNDERX2)
 				fprintf(summary_report_fd, ";power_pkg");
@@ -722,18 +747,24 @@ HIDDEN void print_final_report()
 		if(cntd->enable_power_monitor)
 		{
 			printf("##################### ENERGY #########################\n");
-#if defined(INTEL) || defined(POWER9) || defined(THUNDERX2)
+#if defined(INTEL) || defined(POWER9) || defined(THUNDERX2) 
 			printf("PKG:                    %.0f J\n", global_energy_pkg);
-			if(cntd->enable_report) 
+						if(cntd->enable_report) 
 				fprintf(summary_report_fd, ";%.0f", global_energy_pkg);
+				//printf("DEBUG: dram Energy: %f\n", global_energy_pkg);
+
+
 #endif
-#if defined(INTEL) || defined(POWER9)
+#if defined(INTEL) || defined(POWER9) 
 			if (global_energy_dram != 0) {
 				printf("DRAM:                   %.0f J\n", global_energy_dram);
 				if(cntd->enable_report)
 					fprintf(summary_report_fd, ";%.0f", global_energy_dram);
+					//printf("DEBUG: dram Energy: %f\n", global_energy_dram);
+
 			}
 #endif
+
 #ifdef NVIDIA_GPU
 			printf("GPU:                    %.0f J\n", global_energy_gpu);
 			if(cntd->enable_report) 
@@ -747,6 +778,11 @@ HIDDEN void print_final_report()
 			printf("SYS:                    %.0f J\n", global_energy_sys);
 			if(cntd->enable_report) 
 				fprintf(summary_report_fd, ";%.0f", global_energy_sys);
+#endif
+#ifdef CNTD_MERIC
+                        printf("SYS:                    %.0f J\n", global_energy_sys);
+                        if(cntd->enable_report)
+                                fprintf(summary_report_fd, ";%.0f", global_energy_sys);
 #endif
 			printf("##################### AVG POWER ######################\n");
 #if defined(INTEL) || defined(POWER9) || defined(THUNDERX2)
@@ -771,6 +807,11 @@ HIDDEN void print_final_report()
 				fprintf(summary_report_fd, ";%.2f", global_energy_gpu_sys / exe_time);
 #endif
 #ifdef POWER9
+			printf("SYS:                    %.2f W\n", global_energy_sys / exe_time);
+			if(cntd->enable_report) 
+				fprintf(summary_report_fd, ";%.2f", global_energy_sys / exe_time);
+#endif
+#ifdef CNTD_MERIC
 			printf("SYS:                    %.2f W\n", global_energy_sys / exe_time);
 			if(cntd->enable_report) 
 				fprintf(summary_report_fd, ";%.2f", global_energy_sys / exe_time);
@@ -1523,6 +1564,101 @@ HIDDEN void send_mosquitto_report(char* topic_ending,
 }
 #endif
 
+#ifdef REGALE_ENABLED
+HIDDEN void send_regale_report(int local_rank,
+							   double payload_value) {
+	time_t utc_secs;
+
+	time(&utc_secs);
+
+    regale_job_id_t job_id;
+    regale_job_data_t job_data;
+    regale_metric_t metric = AVG_CPU_FREQ;
+
+    job_id.job_id = cntd->local_ranks[local_rank]->pid;
+    job_id.step_id = 0;
+    job_id.node_id = 0;
+    job_id.app_id = cntd->local_ranks[local_rank]->world_rank;
+    job_id.task_id = cntd->local_ranks[local_rank]->local_rank;
+    job_data.metric = metric;
+    job_data.value = (float)payload_value;
+    job_data.start_time = utc_secs;
+    job_data.end_time = utc_secs;
+
+    regale_report_job_telemetry(regale_handler_monitor, &job_id, &job_data);
+
+}
+
+HIDDEN void get_regale_metric(int local_rank) {
+	regale_device_t device;
+    regale_metric_t metric;
+    regale_metric_value_t metric_value;
+    regale_info_t node_info;
+
+    device.dev_id = (uint32_t)cntd->local_ranks[local_rank]->local_rank;
+    device.dev_type = CPU;
+
+    metric = CPU_POWER;
+	if (regale_nm_get_info(regale_handler_node_manager, &node_info) != REGALE_OK) {
+		regale_verbose(0,"JM: Error reading NM info\n");
+    }
+	//} else {
+	//	regale_verbose(0,"JM: cluster NM info ok tool/version/subversion/info %s/%u/%u/%s\n",
+	//			node_info.tool_name, node_info.version, node_info.subversion, node_info.info_string);
+    //}
+
+    //if (regale_nm_get_metric(regale_handler_node_manager, device, metric, &metric_value) != REGALE_OK) {
+    //    printf("JM: Error reading metric\n");
+    //} else {
+    //    printf("received freq %f for local rank %d\n", metric_value.metric_value[0], device.dev_id);
+    //}
+}
+//HIDDEN void get_regale_current_freq() {
+//
+//	regale_device_t device;
+//    regale_conf_t configuration;
+//    regale_conf_data_t configuration_data = {0};
+//
+//    device.dev_id = 1; // It is possible to use \"NO_ID\" to get the frequencies of all the cores
+//    device.dev_type = CPU;
+//    configuration = FREQUENCY;
+//
+//	if (regale_nm_get_current_conf(regale_handler_node_manager,
+//                                   device                     ,
+//                                   configuration              ,
+//                                   &configuration_data) == REGALE_OK) {
+//        cntd->sys_pstate[MAX] = configuration_data.info.freq_info.frequency_list[0];
+//    }
+//}
+
+HIDDEN void set_regale_freq() {
+	regale_device_t device;
+    regale_conf_t configuration;
+    regale_conf_data_t configuration_data;
+
+    device.dev_id = NO_ID;
+    device.dev_type = CPU;
+    configuration = FREQUENCY;
+    configuration_data.info.freq_info.count = 1;
+    configuration_data.info.freq_info.turbo_enabled = 0;
+    uint32_t frequency_set = 25000;
+    configuration_data.info.freq_info.frequency_list = &frequency_set;
+
+
+	if (regale_nm_set_conf(regale_handler_node_manager,
+                           device                     ,
+                           configuration              ,
+                           &configuration_data        ,
+                           0) != REGALE_OK) {
+		regale_verbose(0,"JM: Error setting frequency\n");
+    }
+	//} else {
+	//	regale_verbose(0,"JM: frequency set to %d\n",
+    //                   frequency_set);
+    //}
+}
+#endif
+
 HIDDEN void print_timeseries_report(
 	double time_curr, double time_prev, 
 	double energy_sys, double *energy_pkg, double *energy_dram, 
@@ -1655,12 +1791,21 @@ HIDDEN void print_timeseries_report(
 		send_mosquitto_report("avg_freq",
 							  i			,
 							  curr_freq);
+#elif REGALE_ENABLED
+		curr_freq = (cntd->local_ranks[i]->perf[PERF_CYCLES_REF][CURR] > 0 ? ((double) cntd->local_ranks[i]->perf[PERF_CYCLES][CURR] / (double) cntd->local_ranks[i]->perf[PERF_CYCLES_REF][CURR]) * cntd->nom_freq_mhz : 0);
+		send_regale_report(i,
+						   curr_freq);
+        //get_regale_metric(i);
+        //get_regale_current_freq();
 #endif
 #else
 		fprintf(timeseries_fd, ";%.0f", 
 			(double) cntd->local_ranks[i]->perf[PERF_CYCLES][CURR] / ((double) sample_duration * 1.0E6));
 #endif
 	}
+#ifdef REGALE_ENABLED
+    //set_regale_freq();
+#endif
 
     // Average Load
 	for(i = 0; i < cntd->local_rank_size; i++)

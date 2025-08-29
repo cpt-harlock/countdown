@@ -2023,7 +2023,8 @@ static void FMPI_Recv(MPI_Fint *buf, MPI_Fint *count, MPI_Fint *datatype, MPI_Fi
 #ifdef DEBUG_MPI
 	int debug_rank;
 	PMPI_Comm_rank(MPI_COMM_WORLD, &debug_rank);
-	printf("[DEBUG][RANK:%d] Start MPI_Recv(FROM_RANK:%d-TO_RANK:%d\n"), *source);
+	//printf("[DEBUG][RANK:%d] Start MPI_Recv(FROM_RANK:%d-TO_RANK:%d\n"), *source);
+	printf("[DEBUG][RANK:%d] Start MPI_Recv(FROM_RANK:%d-TO_RANK:%d)\n", *source);
 #endif
 	call_start(__MPI_RECV, MPI_Comm_f2c(*comm), *source);
     MPI_Datatype datatype_f2c = MPI_Type_f2c(*datatype);
@@ -2031,7 +2032,7 @@ static void FMPI_Recv(MPI_Fint *buf, MPI_Fint *count, MPI_Fint *datatype, MPI_Fi
 	pmpi_recv_(buf, count, datatype, source, tag, comm, status, ierr);
 	call_end(__MPI_RECV, MPI_Comm_f2c(*comm), *source);
 #ifdef DEBUG_MPI
-	printf("[DEBUG][RANK:%d] End MPI_Recv(FROM_RANK:%d-TO_RANK:%d\n"), *sorce);
+	printf("[DEBUG][RANK:%d] End MPI_Recv(FROM_RANK:%d-TO_RANK:%d)\n", *source);
 #endif
 }
 
@@ -2040,13 +2041,13 @@ static void FMPI_Probe(MPI_Fint *source, MPI_Fint *tag, MPI_Fint *comm, MPI_Fint
 #ifdef DEBUG_MPI
 	int debug_rank;
 	PMPI_Comm_rank(MPI_COMM_WORLD, &debug_rank);
-	printf("[DEBUG][RANK:%d] Start MPI_Probe(FROM_RANK:%d-TO_RANK:%d\n"), *source);
+	printf("[DEBUG][RANK:%d] Start MPI_Probe(FROM_RANK:%d-TO_RANK:%d)\n", *source);
 #endif
 	call_start(__MPI_PROBE, MPI_Comm_f2c(*comm), *source);
 	pmpi_probe_(source, tag, comm, status, ierr);
     call_end(__MPI_PROBE, MPI_Comm_f2c(*comm), *source);
 #ifdef DEBUG_MPI
-	printf("[DEBUG][RANK:%d] End MPI_Probe(FROM_RANK:%d-TO_RANK:%d\n"), *source);
+	printf("[DEBUG][RANK:%d] End MPI_Probe(FROM_RANK:%d-TO_RANK:%d)\n", *source);
 #endif
 }
 

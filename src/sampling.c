@@ -29,12 +29,25 @@
 */
 
 #include "cntd.h"
+//#include "${CNTD_MERIC_DIR}/cntd_meric.h"
+//#include "/home/it4i-kaddooja/test3/meric/cntd_meric.h"
+#include "stdbool.h"
+
+#ifdef CNTD_MERIC
+#include "meric_ext.h"
+#endif
 
 #ifndef __INTEL_COMPILER
 #include <math.h>
 #endif
 
 static double timing_event_sample[2] = {0};
+
+#ifdef CNTD_MERIC
+static ExtlibEnergy energy_domains = {0};
+static struct ExtlibEnergyTimeStamp *ts_begin=NULL;
+static struct ExtlibEnergyTimeStamp *ts_end=NULL;
+#endif
 
 #ifdef INTEL
 static void read_energy_rapl(uint64_t *energy_pkg, uint64_t *energy_dram)
@@ -230,12 +243,15 @@ static void read_energy_gpu_nvidia(uint64_t energy_gpu[2][MAX_NUM_GPUS], int cur
 }
 #endif
 
+
 static void read_energy(double *energy_sys, double energy_pkg[MAX_NUM_SOCKETS], double energy_dram[MAX_NUM_SOCKETS], double energy_gpu_sys[MAX_NUM_GPUS], double energy_gpu[MAX_NUM_GPUS], int curr, int prev)
 {
 	int i;
-#if defined(INTEL) || defined(POWER9)
+
+#if defined(INTEL) || defined(POWER9) 
     static uint64_t energy_pkg_s[2][MAX_NUM_SOCKETS] = {0};
     static uint64_t energy_dram_s[2][MAX_NUM_SOCKETS] = {0};
+    
 #endif
 #ifdef POWER9
 	static uint64_t energy_gpu_sys_s[2][MAX_NUM_SOCKETS] = {0};
@@ -243,6 +259,7 @@ static void read_energy(double *energy_sys, double energy_pkg[MAX_NUM_SOCKETS], 
 #ifdef NVIDIA_GPU
 	static uint64_t energy_gpu_s[2][MAX_NUM_GPUS] = {0};
 #endif
+
 
 #ifdef INTEL
 	*energy_sys = 0.0;
@@ -334,6 +351,8 @@ HIDDEN void time_sample(int sig, siginfo_t *siginfo, void *context)
 	static double time_region[MAX_NUM_CPUS][2][2] = {0};
 	static uint64_t mpi_net[MAX_NUM_CPUS][2][2] = {0};
 	static uint64_t mpi_file[MAX_NUM_CPUS][2][2] = {0};
+	
+
 
 	// Objects with static storage duration will initialize to \"0\" if no
 	// initializer is specified.
@@ -341,7 +360,7 @@ HIDDEN void time_sample(int sig, siginfo_t *siginfo, void *context)
 
     double energy_pkg[MAX_NUM_SOCKETS] = {0};
     double energy_dram[MAX_NUM_SOCKETS] = {0};
-	double energy_gpu_sys[MAX_NUM_SOCKETS] = {0};
+    	double energy_gpu_sys[MAX_NUM_SOCKETS] = {0};
 	double energy_gpu[MAX_NUM_GPUS] = {0};
 	double energy_sys = 0;
 
@@ -387,7 +406,15 @@ HIDDEN void time_sample(int sig, siginfo_t *siginfo, void *context)
 #elif THUNDERX2
 			make_tx2mon_sample();
 #endif
+
+#ifdef CNTD_MERIC
+        //if (ts_begin) extlib_free_energy_timestamp(ts_begin);
+        ts_begin = extlib_read_energy_measurements(&energy_domains);
+
+#else
 			read_energy(&energy_sys, energy_pkg, energy_dram, energy_gpu_sys, energy_gpu, 0, 1);
+		
+#endif
 		}
 	}
 	else
@@ -458,6 +485,9 @@ HIDDEN void time_sample(int sig, siginfo_t *siginfo, void *context)
 			}
 		}
 
+
+
+
 		if(cntd->enable_power_monitor)
 		{
 #ifdef POWER9
@@ -465,18 +495,43 @@ HIDDEN void time_sample(int sig, siginfo_t *siginfo, void *context)
 #elif THUNDERX2
 			make_tx2mon_sample();
 #endif
+
+#ifdef CNTD_MERIC
+
+ts_end = extlib_read_energy_measurements(&energy_domains);
+
+if (ts_begin && ts_end) 
+{
+    struct ExtlibEnergyTimeStamp *energy_result = extlib_calc_energy_consumption(ts_begin, ts_end);
+    if (energy_result) 
+    {
+        energy_sys = energy_result->energy_total;  // Update only system-level energy
+        cntd->node.energy_sys += energy_sys;  //  Update COUNTDOWN energy
+        extlib_free_energy_timestamp(energy_result);
+    }
+}
+
+// Move ts_end to ts_begin for the next interval
+ts_begin = ts_end;
+
+#else
+
 			read_energy(&energy_sys, energy_pkg, energy_dram, energy_gpu_sys, energy_gpu, curr, prev);
 
 			// Update energy
 			cntd->node.energy_sys += energy_sys;
+
+
 			for(i = 0; i < cntd->node.num_sockets; i++)
 			{
 				cntd->node.energy_pkg[i] += energy_pkg[i];
 				cntd->node.energy_dram[i] += energy_dram[i];
+				
 #ifdef POWER9
 				cntd->node.energy_gpu[i] += energy_gpu_sys[i];
 #endif
 			}
+#endif
 		}
 
 		unsigned int util_gpu[MAX_NUM_GPUS] = {0};
@@ -602,7 +657,7 @@ HIDDEN void time_sample(int sig, siginfo_t *siginfo, void *context)
 		if(cntd->enable_timeseries_report)
 		{
 			print_timeseries_report(timing[curr], timing[prev], 
-				energy_sys, energy_pkg, energy_dram, 
+				energy_sys, energy_pkg, energy_dram,
 				energy_gpu_sys, energy_gpu,
 				util_gpu, util_mem_gpu, temp_gpu, clock_gpu);
 		}
@@ -670,7 +725,21 @@ HIDDEN void init_time_sample()
 #elif THUNDERX2
 			init_tx2mon(&cntd->tx2mon);
 #endif
+
+#ifdef CNTD_MERIC
+       EXTLIB_ENERGY_ENABLE_DOMAIN(energy_domains, EXTLIB_ENERGY_DOMAIN_A64FX);
+	//EXTLIB_ENERGY_ENABLE_DOMAIN(energy_domains, EXTLIB_ENERGY_DOMAIN_RAPL);
+    	// EXTLIB_ENERGY_ENABLE_DOMAIN(energy_domains, EXTLIB_ENERGY_DOMAIN_NVML);
+    	// EXTLIB_ENERGY_ENABLE_DOMAIN(energy_domains, EXTLIB_ENERGY_DOMAIN_HDEEM);
+    	// EXTLIB_ENERGY_ENABLE_DOMAIN(energy_domains, EXTLIB_ENERGY_DOMAIN_ROCM);
+        // EXTLIB_ENERGY_ENABLE_DOMAIN(energy_domains, EXTLIB_ENERGY_DOMAIN_NVML);
+
+            extlib_init(&energy_domains, true);  // Initialize MERIC
+#endif
+		
 		}
+
+
 
 #ifdef NVIDIA_GPU
 		init_nvml();
@@ -693,8 +762,18 @@ HIDDEN void finalize_time_sample()
 		// Delete sampling timer
 		delete_timer(cntd->timer);
 
-		// Last sample
+        // Last sample
 		time_sample(0, NULL, NULL);
+#ifdef CNTD_MERIC
+
+        extlib_close(&energy_domains);
+        if (ts_begin) extlib_free_energy_timestamp(ts_begin);
+        //if (ts_end) extlib_free_energy_timestamp(ts_end);
+#endif
+
+	
+		}
+
 
 		if(cntd->enable_power_monitor)
 		{
@@ -705,7 +784,8 @@ HIDDEN void finalize_time_sample()
 #elif THUNDERX2
 			finalize_tx2mon(&cntd->tx2mon);
 #endif
-		}
+
+
 #ifdef NVIDIA_GPU
 		finalize_nvml();
 #endif

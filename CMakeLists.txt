@@ -43,6 +43,18 @@ cmake_policy(SET CMP0074 NEW)
 set(PROJECT_CMAKE ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 
+#set(CNTD_MERIC_DIR /home/it4i-kaddooja/Meric_new_lib/meric)
+#set(CNTD_MERIC_INCLUDE_DIR ${CNTD_MERIC_DIR})
+
+#set(CNTD_MERIC_DIR /home/it4i-kaddooja/test3/meric)
+#set(CNTD_MERIC_INCLUDE_DIR ${CNTD_MERIC_DIR})
+#set(CNTD_MERIC_LIBRARY ${CNTD_MERIC_DIR}/liba64fx_meric.so)
+#set(CNTD_MERIC_LIBRARY ${CNTD_MERIC_DIR}/lib_rapl_meric.so)
+
+
+# Include directories
+#include_directories(${CNTD_MERIC_INCLUDE_DIR})
+
 ###########################################################
 # Options
 ###########################################################
@@ -67,12 +79,22 @@ option(CNTD_DISABLE_ALL_MPI_EXCEPT_INI_FIN
 option(CNTD_ENABLE_DEBUG_MPI
 	   "Enable the debug prints on MPI functions"
 	   OFF)
-
+option(CNTD_ENABLE_MERIC
+	  "Enable the MERIC VERSION OF CNTD"
+           ON)
+#option(CNTD_ENABLE_MERIC "Enable MERIC integration" OFF)
 ###########################################################
 # MOSQUITTO Options
 ###########################################################
 option(CNTD_ENABLE_MOSQUITTO
 	   "Enable MQTT message passing"
+	   OFF)
+
+###########################################################
+# REGALE Options
+###########################################################
+option(CNTD_ENABLE_REGALE
+	   "Enable REGALE communication layer"
 	   OFF)
 
 ###########################################################
@@ -186,6 +208,20 @@ if(CNTD_ENABLE_MOSQUITTO)
 endif()
 
 ###########################################################
+# REGALE
+###########################################################
+if(CNTD_ENABLE_REGALE)
+	find_package(REGALE REQUIRED)
+	add_library(cntd_regale INTERFACE)
+	target_link_libraries(cntd_regale
+						  INTERFACE
+						  ${REGALE_LIBRARIES})
+	target_include_directories(cntd_regale
+							   INTERFACE
+							   ${REGALE_INCLUDE_DIRS})
+endif()
+
+###########################################################
 # Get compile  definitions
 ###########################################################
 if(DEFINED ENV{CNTD_GET_COMPILE_DEFINITIONS})
@@ -199,4 +235,34 @@ endif()
 ###########################################################
 # Add directories
 ###########################################################
+if(CNTD_ENABLE_MERIC)
+	include(FetchContent)
+
+# Define MERIC repository
+FetchContent_Declare(
+  meric
+  GIT_REPOSITORY https://code.it4i.cz/vys0053/meric.git
+  GIT_TAG external  # Change to correct branch
+  SOURCE_DIR ${CMAKE_BINARY_DIR}/meric
+ 
+)
+
+# Fetch MERIC source only if it's missing
+if(NOT EXISTS ${CMAKE_SOURCE_DIR}/meric})
+  message(STATUS "Fetching MERIC from repository...")
+  FetchContent_MakeAvailable(meric)
+endif()
+
+
+# Build MERIC using its Makefile
+add_custom_target(build_meric
+  COMMAND make -C ${CMAKE_BINARY_DIR}/meric
+  WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/meric
+  COMMENT "Building MERIC using its Makefile..."
+)
+endif()
+
+# Make sure COUNTDOWN depends on MERIC before compiling
+
 add_subdirectory(src)
+

@@ -354,7 +354,7 @@ HIDDEN MPI_Datatype get_mpi_datatype_node()
                                      MPI_UINT64_T,  // energy_sys
                                      MPI_UINT64_T,  // energy_pkg
                                      MPI_UINT64_T,  // energy_dram
-                                     MPI_UINT64_T}; // energy_gpu
+				     MPI_UINT64_T}; // energy_gpu
 
     MPI_Aint array_of_displacements[] = {offsetof(CNTD_NodeInfo_t, hostname),
                                          offsetof(CNTD_NodeInfo_t, num_sockets),
@@ -364,7 +364,7 @@ HIDDEN MPI_Datatype get_mpi_datatype_node()
                                          offsetof(CNTD_NodeInfo_t, energy_sys),
                                          offsetof(CNTD_NodeInfo_t, energy_pkg),
                                          offsetof(CNTD_NodeInfo_t, energy_dram),
-                                         offsetof(CNTD_NodeInfo_t, energy_gpu)};
+ 					 offsetof(CNTD_NodeInfo_t, energy_gpu)};
 
     PMPI_Type_create_struct(count, array_of_blocklengths, array_of_displacements, array_of_types, &tmp_type);
     PMPI_Type_get_extent(tmp_type, &lb, &extent);
@@ -647,11 +647,26 @@ HIDDEN int read_intel_nom_freq()
         if(!strncmp(line, "model name", 10))
         {
             result = strtok(line, ":");
-            result = strtok(NULL, "@");
-            result = strtok(NULL, "@");
-            sscanf(result, " %fGHz", &nom_freq);
-            break;
-        }
+ 	    if (result != NULL) //new edition
+            	result = strtok(NULL, "@");
+
+            if (result != NULL) // new edition
+              {
+                // Check if there is a frequency in the string after the '@'
+                if (sscanf(result, " %fGHz", &nom_freq) == 1)
+                {
+                    break;
+                }
+                else if (sscanf(result, " %f", &nom_freq) == 1)
+                {
+                    break;
+                }
+
+           // result = strtok(NULL, "@");
+           // sscanf(result, " %fGHz", &nom_freq);
+           // break;
+	}
+       }
     }
     free(line);
     fclose(fd);

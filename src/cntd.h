@@ -64,6 +64,11 @@
 #include <nvml.h>
 #endif
 
+#ifdef __aarch64__
+#define SKIP_CPUFREQ
+#endif
+
+
 #ifdef MOSQUITTO_ENABLED
 #include "mosquitto.h"
 
@@ -76,6 +81,49 @@
 #define MQTT_RETAIN	   0
 #define MQTT_TOPIC	   "org/cineca/plugin/cntd_pub/job_id/%s/node/%s/cpu/%u/w_rank/%u/l_rank/%u/%s"
 #endif
+
+#ifdef REGALE_ENABLED
+#include "regale_core.h"
+#include "regale_internals.h"
+#include "Monitor/regale_monitor.h"
+#include "NodeManager/regale_nm.h"
+#ifdef CNTD_REGALE_TOPIC
+#define REGALE_TOPIC         CNTD_REGALE_TOPIC
+#else
+#define REGALE_TOPIC         "try_cntd_examon"
+#endif
+#ifdef CNTD_REGALE_MONITOR_PARTITION
+#define REGALE_MONITOR_PARTITION     CNTD_REGALE_MONITOR_PARTITION
+#else
+#define REGALE_MONITOR_PARTITION     "monitor"
+#endif
+#ifdef CNTD_REGALE_NODE_MANAGER_PARTITION
+#define REGALE_NODE_MANAGER_PARTITION     CNTD_REGALE_NODE_MANAGER_PARTITION
+#else
+#define REGALE_NODE_MANAGER_PARTITION     "NodeManager*"
+#endif
+#ifdef CNTD_REGALE_FILE_TYPES
+#define REGALE_FILE_TYPES    CNTD_REGALE_FILE_TYPES
+#else
+#define REGALE_FILE_TYPES    "/usr/local/share/regale_types.xml"
+#endif
+#ifdef CNTD_REGALEE_FILE_PROFILES
+#define REGALE_FILE_PROFILES CNTD_REGALE_FILE_PROFILES
+#else
+#define REGALE_FILE_PROFILES "/usr/local/etc/regale_profiles.xml"
+#endif
+#ifdef CNTD_REGALE_TYPE
+#define REGALE_TYPE          CNTD_REGALE_TYPE
+#else
+#define REGALE_TYPE          "mqtt_string"
+#endif
+#ifdef CNTD_REGALE_TRANSPORT
+#define REGALE_TRANSPORT     CNTD_REGALE_TRANSPORT
+#else
+#define REGALE_TRANSPORT     "udpv4_transport"
+#endif
+#endif
+
 
 // CNTD MPI Definitions
 #include "cntd_mpi_def.h"
@@ -107,6 +155,7 @@
 #define TMP_TIME_SERIES_FILE			"%s/cntd_%s.%s.csv"
 #define TIME_SERIES_FILE				"%s/cntd_%s.csv"
 #define SHM_FILE						"/cntd_local_rank_%d.%s"
+
 
 // Hide symbols for external linking
 #define HIDDEN  __attribute__((visibility("hidden")))
@@ -174,7 +223,7 @@
 #ifdef CNTD_MAX_NUM_MEM_CHANNELS_PER_SOCKET
 #define MAX_NUM_MEM_CHANNELS_PER_SOCKET CNTD_MAX_NUM_MEM_CHANNELS_PER_SOCKET
 #else
-#define MAX_NUM_MEM_CHANNELS_PER_SOCKET 6
+#define MAX_NUM_MEM_CHANNELS_PER_SOCKET 8
 #endif
 #define PERF_INST_RET 					MAX_NUM_CUSTOM_PERF
 #define PERF_CYCLES                     (MAX_NUM_CUSTOM_PERF + 1)
@@ -226,6 +275,8 @@
 #define INTEL_RAPL_PKG 					"/sys/devices/virtual/powercap/intel-rapl/intel-rapl:%u"
 #define INTEL_RAPL_PKG_NAME 			"/sys/devices/virtual/powercap/intel-rapl/intel-rapl:%u/name"
 #define PKG_ENERGY_UJ 					"/sys/devices/virtual/powercap/intel-rapl/intel-rapl:%u/energy_uj"
+//#define PKG_ENERGY_UJ						 "/sys/devices/virtual/powercap/intel-rapl/intel-rapl:0/energy_uj"
+
 #define PKG_MAX_ENERGY_RANGE_UJ 		"/sys/devices/virtual/powercap/intel-rapl/intel-rapl:%u/max_energy_range_uj"
 
 #define INTEL_RAPL_DRAM 				"/sys/devices/virtual/powercap/intel-rapl/intel-rapl:%u/intel-rapl:%u:%u"
@@ -494,7 +545,7 @@ typedef struct
 	// Energy
 	double energy_sys;						// Joules - counter
 	double energy_pkg[MAX_NUM_SOCKETS];		// Joules - counter
-	double energy_dram[MAX_NUM_SOCKETS];	// Joules - counter
+	double energy_dram[MAX_NUM_SOCKETS];
 	double energy_gpu[MAX_NUM_SOCKETS];		// Joules - counter - only for Power9
 } CNTD_NodeInfo_t;
 
@@ -542,7 +593,10 @@ typedef struct
 	int userspace_governor;
 	int policy_limits_freq_fd[5]; // 5 files: \"cpuinfo_max/min_freq\" (2), \"scaling_max/min_freq\" (2),
 								  // \"scaling_setspeed\" (1).
-
+//#ifdef A64FX
+	// double energy_pkg_overflow[MAX_NUM_SOCKETS];
+        // double energy_dram_overflow[MAX_NUM_SOCKETS];
+//#endif
 #ifdef INTEL
 	int nom_freq_mhz;
 	int msr_fd;
@@ -568,6 +622,11 @@ extern _Bool hwp_usage;
 typedef struct mosquitto MOSQUITTO_t;
 
 extern MOSQUITTO_t* mosq;
+#endif
+
+#ifdef REGALE_ENABLED
+extern regale_handler_t regale_handler_monitor;
+extern regale_handler_t regale_handler_node_manager;
 #endif
 
 typedef struct read_format {
@@ -608,9 +667,11 @@ void finalize_perf();
 
 void init_arch_conf();
 
+#ifndef SKIP_CPUFREQ
 //cpufreq
 void init_cpufreq();
 void finalize_cpufreq();
+#endif
 
 // init.c
 void start_cntd();
@@ -653,6 +714,11 @@ void init_timeseries_report();
 void send_mosquitto_report(char* topic_ending,
 						   int local_rank	 ,
 						   double payload_value);
+void send_regale_report(int local_rank	 ,
+						double payload_value);
+void get_regale_metric(int local_rank);
+void set_regale_freq();
+void get_regale_current_freq();
 void print_timeseries_report(
 	double time_curr, double time_prev, 
 	double energy_sys, 

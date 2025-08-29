@@ -458,7 +458,7 @@ HIDDEN void perf_open_roofline(struct perf_event_attr *perf_pe, int i, int pid, 
 
 	// INTEL SPECIFIC HACK. TODO: FIX IT IN A MORE GENERAL WAY!
 	if (i == 0) {
-		int events_type[MAX_NUM_MEM_CHANNELS_PER_SOCKET] = {0xe, 0xf, 0x10, 0x11, 0x12, 0x13};
+		int events_type[MAX_NUM_MEM_CHANNELS_PER_SOCKET] = {0xa8, 0xa9, 0xaa, 0xab, 0xac, 0xad, 0xae, 0xaf};
 		int j;
 		int k;
 		(*perf_pe) = (struct perf_event_attr){.size=0x78                                                                ,

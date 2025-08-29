@@ -41,10 +41,31 @@ set(SOURCES
 	timer.c
 	wrapper_pmpi_c_cpp.c
 	wrapper_pmpi_fortran.c
-	hwp.c)
+	hwp.c
+	#${CNTD_MERIC_DIR}/src/extlib/extlib.cpp
+	#${CNTD_MERIC_DIR}/cntd_meric.cpp
+	# ${CNTD_MERIC_DIR}/Main.c
+	)
 
 # Add dynamic library
 add_library(cntd SHARED ${SOURCES})
+
+if(CNTD_ENABLE_MERIC)
+add_dependencies(cntd build_meric)
+
+# Specify the installation directory for MERIC
+set(MERIC_INSTALL_DIR ${CMAKE_BINARY_DIR}/meric)
+
+
+# Include MERIC headers
+target_include_directories(cntd PRIVATE ${MERIC_INSTALL_DIR}/include)
+link_directories(cntd PRIVATE ${MERIC_INSTALL_DIR}/lib)
+
+# Link MERIC static library with COUNTDOWN
+target_link_libraries(cntd PRIVATE ${MERIC_INSTALL_DIR}/lib/libmeric_ext.a)
+target_link_libraries(cntd PRIVATE stdc++)
+endif()
+
 if(CNTD_ENABLE_MOSQUITTO)
 	target_link_libraries(cntd
 						  PRIVATE
@@ -55,6 +76,17 @@ if(CNTD_ENABLE_MOSQUITTO)
 	target_compile_definitions(cntd
 							   PRIVATE
 							   "MOSQUITTO_ENABLED")
+elseif(CNTD_ENABLE_REGALE)
+	target_link_libraries(cntd
+						  PRIVATE
+						  MPI::MPI_C
+						  cntd_hwloc
+						  cntd_regale)
+
+	target_compile_definitions(cntd
+							   PRIVATE
+							   "REGALE_ENABLED")
+
 else()
 	target_link_libraries(cntd
 						  PRIVATE
@@ -70,8 +102,12 @@ if(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86_64")
 		COMMAND bash -c "lscpu | grep 'Vendor ID:' | cut -d: -f2 | tr -d ' ' | tr -d '\n'"
 		OUTPUT_VARIABLE ARCH)
 	if("${ARCH}" STREQUAL "GenuineIntel")
+		if(CNTD_ENABLE_MERIC)
 		target_compile_definitions(cntd
-			PRIVATE "INTEL")
+			PRIVATE "CNTD_MERIC")
+		else()
+            target_compile_definitions(cntd PRIVATE "INTEL")
+		endif()
 	elseif("${ARCH}" STREQUAL "AuthenticAMD")
 		target_compile_definitions(cntd
 			PRIVATE "AMD")
@@ -82,8 +118,9 @@ elseif(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "ppc64le")
 	target_compile_definitions(cntd
 		PRIVATE "POWER9")
 elseif(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "aarch64")
+
 	target_compile_definitions(cntd
-		PRIVATE "THUNDERX2")	
+		PRIVATE "CNTD_MERIC")	
 else()
 	message(FATAL_ERROR "The architecture ${CMAKE_SYSTEM_PROCESSOR} is not supported!")
 endif()
@@ -161,6 +198,47 @@ if(DEFINED ENV{CNTD_MAX_NUM_MEM_CHANNELS_PER_SOCKET})
 	target_compile_definitions(cntd
 							   PRIVATE
 							   CNTD_MAX_NUM_MEM_CHANNELS_PER_SOCKET=$ENV{CNTD_MAX_NUM_MEM_CHANNELS_PER_SOCKET})
+endif()
+
+###########################################################
+# REGALE Options
+###########################################################
+if(CNTD_ENABLE_REGALE)
+    if(DEFINED ENV{CNTD_REGALE_FILE_TYPES})
+    	target_compile_definitions(cntd
+    							   PRIVATE
+    							   CNTD_REGALE_FILE_TYPES=$ENV{CNTD_REGALE_FILE_TYPES})
+    endif()
+    if(DEFINED ENV{CNTD_REGALE_FILE_PROFILES})
+    	target_compile_definitions(cntd
+    							   PRIVATE
+    							   CNTD_REGALE_FILE_PROFILES=$ENV{CNTD_REGALE_FILE_PROFILES})
+    endif()
+    if(DEFINED ENV{CNTD_REGALE_TOPIC})
+    	target_compile_definitions(cntd
+    							   PRIVATE
+    							   CNTD_REGALE_TOPIC=$ENV{CNTD_REGALE_TOPIC})
+    endif()
+    if(DEFINED ENV{CNTD_REGALE_MONITOR_PARTITION})
+    	target_compile_definitions(cntd
+    							   PRIVATE
+    							   CNTD_REGALE_MONITOR_PARTITION=$ENV{CNTD_REGALE_MONITOR_PARTITION})
+    endif()
+    if(DEFINED ENV{CNTD_REGALE_NODE_MANAGER_PARTITION})
+    	target_compile_definitions(cntd
+    							   PRIVATE
+    							   CNTD_REGALE_NODE_MANAGER_PARTITION=$ENV{CNTD_REGALE_NODE_MANAGER_PARTITION})
+    endif()
+    if(DEFINED ENV{CNTD_REGALE_TYPE})
+    	target_compile_definitions(cntd
+    							   PRIVATE
+    							   CNTD_REGALE_TYPE=$ENV{CNTD_REGALE_TYPE})
+    endif()
+    if(DEFINED ENV{CNTD_REGALE_TRANSPORT})
+    	target_compile_definitions(cntd
+    							   PRIVATE
+    							   CNTD_REGALE_TRANSPORT=$ENV{CNTD_REGALE_TRANSPORT})
+    endif()
 endif()
 
 # Install cntd

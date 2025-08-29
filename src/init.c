@@ -35,6 +35,11 @@ CNTD_t *cntd;
 MOSQUITTO_t* mosq;
 #endif
 
+#ifdef REGALE_ENABLED
+regale_handler_t regale_handler_monitor;
+regale_handler_t regale_handler_node_manager;
+#endif
+
 static void read_env()
 {
 	int i, j, world_rank;
@@ -331,7 +336,9 @@ HIDDEN void start_cntd()
 	// Read P-state configurations
 	init_arch_conf();
 
+#ifndef SKIP_CPUFREQ
 	init_cpufreq();
+#endif
 
 #ifdef MOSQUITTO_ENABLED
 	if(cntd->rank->local_rank == 0) {
@@ -355,6 +362,27 @@ HIDDEN void start_cntd()
 								  "your_username",
 								  "your_password");
 	}
+#endif
+
+#ifdef REGALE_ENABLED
+	if(cntd->rank->local_rank == 0) {
+        regale_handler_monitor = regale_monitor_init(REGALE_MONITOR_PARTITION,
+                                                     REGALE_FILE_TYPES       ,
+                                                     REGALE_FILE_PROFILES    ,
+                                                     "udpv4_transport");
+	}
+	char hostname[STRING_SIZE];
+	gethostname(hostname, sizeof(hostname));
+    char partition_name[STRING_SIZE];
+    sprintf(partition_name, "NodeManager%s", hostname);
+
+    //regale_handler_node_manager = regale_nm_init(partition_name               ,
+    //regale_handler_node_manager = regale_nm_init(REGALE_NODE_MANAGER_PARTITION,
+    //                                             REGALE_FILE_TYPES            ,
+    //                                             REGALE_FILE_PROFILES         ,
+    //                                             "udpv4_transport");
+
+    regale_verb_enabled = 0;
 #endif
 
 	// Init the node sampling
@@ -386,6 +414,13 @@ HIDDEN void stop_cntd()
 
 		mosquitto_lib_cleanup();
 	}
+#endif
+
+#ifdef REGALE_ENABLED
+	if(cntd->rank->local_rank == 0) {
+        regale_monitor_finalize(&regale_handler_monitor);
+	}
+    regale_nm_finalize(&regale_handler_node_manager);
 #endif
 
 	if(cntd->enable_eam_freq) {
@@ -420,9 +455,9 @@ HIDDEN void stop_cntd()
 		finalize_timeseries_report();
 
 	finalize_local_masters();
-
+#ifndef SKIP_CPUFREQ
 	finalize_cpufreq();
-	
+#endif
 	free(cntd);
 }
 
